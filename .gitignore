@@ -1,2 +1,4 @@
 /lfw
 /lfw.tgz
+__pycache__
+.venv

@@ -4,3 +4,6 @@ streamlit
 Pillow
 numpy
 baal
+git+https://github.com/geohot/tinygrad.git
+safetensors
+huggingface_hub
