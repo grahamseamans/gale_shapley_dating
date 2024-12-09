@@ -29,7 +29,8 @@ class Block:
         out = self.bn2(self.conv2(out))
         for l in self.downsample:
             x = l(x)
-        out += x
+        # out += x
+        out = out + x
         return out.relu()
 
 

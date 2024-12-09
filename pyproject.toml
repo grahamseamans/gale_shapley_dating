@@ -1,0 +1,15 @@
+[project]
+name = "rank-people"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "huggingface-hub>=0.26.5",
+    "pillow>=11.0.0",
+    "safetensors>=0.4.5",
+    "tinygrad",
+]
+
+[tool.uv.sources]
+tinygrad = { git = "https://github.com/geohot/tinygrad.git" }
