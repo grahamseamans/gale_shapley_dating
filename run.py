@@ -11,7 +11,7 @@ from tinygrad.nn.state import (
 )
 from model.model import (
     ProbabilisticResNet,
-    BayesianPairwiseRankingLoss,
+    baysean_pairwise_ranking_loss,
 )
 from utils.database import (
     init_db,
@@ -21,7 +21,6 @@ from utils.database import (
 )
 from utils.selection import identify_uncertain_pairs
 import sqlite3
-import numpy as np
 
 import matplotlib.pyplot as plt
 
@@ -30,9 +29,8 @@ IMAGE_DIR = "lfw"
 DB_FILE = "preferences.db"
 
 # Initialize model, optimizer, and loss function
-model = ProbabilisticResNet(embedding_dim=64)
+model = ProbabilisticResNet(embedding_dim=16)
 optimizer = Adam(get_parameters(model), lr=1e-3)
-loss_fn = BayesianPairwiseRankingLoss()
 
 
 def display_batch(user_ids, profile_images, preferred_images, not_preferred_images):
@@ -126,46 +124,6 @@ def train_test_split(data, test_ratio=0.2, seed=42):
     return train_data, test_data
 
 
-# class PreferenceDataset:
-#     def __init__(self, data):
-#         self.data = data
-
-#     def __len__(self):
-#         return len(self.data)
-
-#     def __getitem__(self, index):
-#         user_id, profile_pic, preferred_path, not_preferred_path = self.data[index]
-#         profile_image = load_and_preprocess_image(profile_pic)
-#         preferred_image = load_and_preprocess_image(preferred_path)
-#         not_preferred_image = load_and_preprocess_image(not_preferred_path)
-#         return user_id, profile_image, preferred_image, not_preferred_image
-
-
-# def generate_batches(dataset, batch_size=32, shuffle=False):
-#     indices = list(range(len(dataset)))
-#     if shuffle:
-#         random.shuffle(indices)
-
-#     for i in range(0, len(indices), batch_size):
-#         batch_indices = indices[i : i + batch_size]
-#         batch_data = [dataset[j] for j in batch_indices]
-
-#         # Extract data into arrays
-#         user_ids = [x[0] for x in batch_data]
-#         profile_images = np.stack(
-#             [x[1] for x in batch_data], axis=0
-#         )  # shape [B, C, H, W]
-#         preferred_images = np.stack([x[2] for x in batch_data], axis=0)
-#         not_preferred_images = np.stack([x[3] for x in batch_data], axis=0)
-
-#         # Convert NumPy arrays to tinygrad Tensors
-#         profile_images = Tensor(profile_images)
-#         preferred_images = Tensor(preferred_images)
-#         not_preferred_images = Tensor(not_preferred_images)
-
-#         yield user_ids, profile_images, preferred_images, not_preferred_images
-
-
 def load_model(model):
     model_path = "model.safetensors"
     if os.path.exists(model_path):
@@ -214,7 +172,7 @@ def make_batch(data, idxs):
     return user_ids, profile_images, preferred_images, not_preferred_images
 
 
-def train_model(model, batch_size=8, num_steps=5, eval_interval=1):
+def train_model(model, batch_size=8, num_steps=10_000, eval_interval=1):
 
     def step(user_profile_batch, preferred_batch, not_preferred_batch):
         Tensor.training = True
@@ -224,7 +182,7 @@ def train_model(model, batch_size=8, num_steps=5, eval_interval=1):
         preferred_mu, preferred_sigma = model(preferred_batch)
         not_preferred_mu, not_preferred_sigma = model(not_preferred_batch)
 
-        current_loss = loss_fn(
+        current_loss = baysean_pairwise_ranking_loss(
             anchor_mu,
             anchor_sigma,
             preferred_mu,
@@ -244,7 +202,7 @@ def train_model(model, batch_size=8, num_steps=5, eval_interval=1):
     train_samples = Samples(len(train_data))
     test_samples = Samples(len(test_data))
 
-    for i in range(num_steps):
+    for i in range(num_steps // batch_size):
 
         user_ids, profile_batch, preferred_batch, not_preferred_batch = make_batch(
             train_data, train_samples.idxs(batch_size)
@@ -258,7 +216,7 @@ def train_model(model, batch_size=8, num_steps=5, eval_interval=1):
             preferred_mu, preferred_sigma = model(preferred_batch)
             not_preferred_mu, not_preferred_sigma = model(not_preferred_batch)
 
-            acc = loss_fn(
+            acc = baysean_pairwise_ranking_loss(
                 anchor_mu,
                 anchor_sigma,
                 preferred_mu,
@@ -330,3 +288,43 @@ if __name__ == "__main__":
 #     not_preferred_batch = Tensor.stack(*not_preferred_batch)
 
 #     return user_profile_batch, preferred_batch, not_preferred_batch
+
+
+# class PreferenceDataset:
+#     def __init__(self, data):
+#         self.data = data
+
+#     def __len__(self):
+#         return len(self.data)
+
+#     def __getitem__(self, index):
+#         user_id, profile_pic, preferred_path, not_preferred_path = self.data[index]
+#         profile_image = load_and_preprocess_image(profile_pic)
+#         preferred_image = load_and_preprocess_image(preferred_path)
+#         not_preferred_image = load_and_preprocess_image(not_preferred_path)
+#         return user_id, profile_image, preferred_image, not_preferred_image
+
+
+# def generate_batches(dataset, batch_size=32, shuffle=False):
+#     indices = list(range(len(dataset)))
+#     if shuffle:
+#         random.shuffle(indices)
+
+#     for i in range(0, len(indices), batch_size):
+#         batch_indices = indices[i : i + batch_size]
+#         batch_data = [dataset[j] for j in batch_indices]
+
+#         # Extract data into arrays
+#         user_ids = [x[0] for x in batch_data]
+#         profile_images = np.stack(
+#             [x[1] for x in batch_data], axis=0
+#         )  # shape [B, C, H, W]
+#         preferred_images = np.stack([x[2] for x in batch_data], axis=0)
+#         not_preferred_images = np.stack([x[3] for x in batch_data], axis=0)
+
+#         # Convert NumPy arrays to tinygrad Tensors
+#         profile_images = Tensor(profile_images)
+#         preferred_images = Tensor(preferred_images)
+#         not_preferred_images = Tensor(not_preferred_images)
+
+#         yield user_ids, profile_images, preferred_images, not_preferred_images
