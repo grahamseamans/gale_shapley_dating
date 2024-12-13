@@ -1,13 +1,14 @@
 CREATE TABLE users (
-            user_id TEXT PRIMARY KEY,
-            profile_picture TEXT
-        , description TEXT);
+    user_id TEXT PRIMARY KEY,
+    profile_picture TEXT,
+    description TEXT
+);
 CREATE TABLE preferences (
-            user_id TEXT,
-            preferred TEXT,
-            not_preferred TEXT,
-            FOREIGN KEY (user_id) REFERENCES users (user_id)
-        );
+    user_id TEXT,
+    preferred TEXT,
+    not_preferred TEXT,
+    FOREIGN KEY (user_id) REFERENCES users (user_id)
+);
 CREATE TABLE uncertain_pairs (
     user_id TEXT,
     img1 TEXT,
