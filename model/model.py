@@ -78,10 +78,10 @@ def baysean_pairwise_ranking_loss(
 
     def log_sigmoid(x: Tensor):
         # log_sigmoid(x) = -softplus(-x) = x - softplus(x)
-        return -(x - x.softplus())
+        return x - x.softplus()
 
     # Bayesian loss
-    loss = log_sigmoid(score_diffs).mean()
+    loss = -log_sigmoid(score_diffs).mean()
     return loss
 
 
