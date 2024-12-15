@@ -60,7 +60,6 @@ def sample_embeddings(mu: Tensor, sigma: Tensor, num_samples=1):
     return mu + sigma * random_samples
 
 
-# CHAT GPT LOSS FUNCTION!!! CHECK THIS OUT
 def baysean_pairwise_ranking_loss(
     anchor_mu, anchor_sigma, pos_mu, pos_sigma, neg_mu, neg_sigma
 ):
@@ -83,26 +82,6 @@ def baysean_pairwise_ranking_loss(
     # Bayesian loss
     loss = -log_sigmoid(score_diffs).mean()
     return loss
-
-
-# # ---- Bayesian Pairwise Ranking Loss ---- #
-# class BayesianPairwiseRankingLoss:
-#     def __call__(self, anchor_mu, anchor_sigma, pos_mu, pos_sigma, neg_mu, neg_sigma):
-#         # Sample embeddings
-#         anchor_samples = sample_embeddings(anchor_mu, anchor_sigma)
-#         pos_samples = sample_embeddings(pos_mu, pos_sigma)
-#         neg_samples = sample_embeddings(neg_mu, neg_sigma)
-
-#         # Compute scores
-#         pos_scores = (anchor_samples * pos_samples).sum(axis=1)
-#         neg_scores = (anchor_samples * neg_samples).sum(axis=1)
-
-#         # Score differences
-#         score_diffs = pos_scores - neg_scores
-
-#         # Bayesian loss
-#         loss = -Tensor.logsigmoid(score_diffs).mean()
-#         return loss
 
 
 # ---- Example Usage ---- #

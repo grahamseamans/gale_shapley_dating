@@ -124,15 +124,6 @@ def train_test_split(data, test_ratio=0.2, seed=42):
     return train_data, test_data
 
 
-def load_model(model):
-    model_path = "model.safetensors"
-    if os.path.exists(model_path):
-        state_dict = safe_load(model_path)
-        load_state_dict(model, state_dict)
-    else:
-        print("No saved model found. Please train the model first.")
-
-
 class Samples:
     def __init__(self, length, shuffle=True):
         self.length = length
@@ -237,6 +228,15 @@ if __name__ == "__main__":
     train_model(
         model,
     )
+
+
+def load_model(model):
+    model_path = "model.safetensors"
+    if os.path.exists(model_path):
+        state_dict = safe_load(model_path)
+        load_state_dict(model, state_dict)
+    else:
+        print("No saved model found. Please train the model first.")
 
 
 # def get_candidate_images_for_user(user_id, conn, image_files):
