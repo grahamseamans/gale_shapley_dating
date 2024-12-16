@@ -22,6 +22,20 @@ class DataHandler:
         transform_fn: function that processes a single sample
         num_workers: number of parallel workers (None or int)
         pool_type: "process" or "thread"
+
+        •	If your transform_fn is CPU-bound (e.g., heavy computation
+            like image augmentation), ProcessPoolExecutor is generally
+            better since it can bypass the GIL.
+        •	If your transform_fn is mostly I/O-bound (e.g., loading and
+            decoding images from disk), ThreadPoolExecutor is often
+            sufficient and can have lower overhead.
+
+        If you don’t know which scenario dominates, ProcessPoolExecutor
+        is usually a safer bet for heavy preprocessing tasks, as it
+        scales better across multiple cores. The downside is that
+        inter-process communication might have a bit more overhead
+        than threads.
+
         """
         if transform_fn is None:
             raise ValueError("You must provide a transform_fn.")
