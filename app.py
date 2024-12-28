@@ -1,3 +1,123 @@
+# import streamlit as st
+# import random
+# import os
+# from utils.database import (
+#     init_db,
+#     register_user,
+#     get_all_users,
+#     get_user_profile,
+#     update_user_description,
+#     record_preference,
+#     remove_uncertain_pair,
+#     get_uncertain_pairs,
+#     get_preferences,
+# )
+# from utils.image_ops import get_image_files
+
+
+# IMAGE_DIR = "lfw"
+
+# if not os.path.exists(IMAGE_DIR):
+#     st.error(f"The directory '{IMAGE_DIR}' does not exist.")
+#     st.stop()
+
+# image_files = get_image_files(IMAGE_DIR)
+# if len(image_files) < 2:
+#     st.error("Not enough images in the directory to compare.")
+#     st.stop()
+
+
+# if __name__ == "__main__":
+#     st.title("Image Preference Selector with User Profiles")
+#     st.sidebar.title("User Options")
+
+#     conn = init_db()
+
+#     # Register a new user
+#     st.sidebar.write("### Register a New User")
+#     new_user_id = st.sidebar.text_input("Enter a new user ID:", key="register_user_id")
+#     description = st.sidebar.text_area(
+#         "Enter a description for the user:", key="register_description"
+#     )
+
+#     if st.sidebar.button("Submit User ID", key="register_button"):
+#         if new_user_id:
+#             profile_picture = random.choice(image_files)
+#             success = register_user(conn, new_user_id, description, profile_picture)
+#             if success:
+#                 st.sidebar.success(f"User '{new_user_id}' registered successfully!")
+#                 st.sidebar.image(
+#                     profile_picture,
+#                     caption=f"Profile Picture for {new_user_id}",
+#                     use_container_width=True,
+#                 )
+#             else:
+#                 st.sidebar.warning("User ID already exists!")
+#         else:
+#             st.warning("Please enter a user ID!")
+
+#     users = get_all_users(conn)
+
+#     if users:
+#         selected_user = st.sidebar.selectbox("Select User", users, key="select_user")
+#         if selected_user:
+#             profile_picture, user_description = get_user_profile(conn, selected_user)
+#             st.sidebar.write(f"Currently selecting for user: **{selected_user}**")
+#             st.sidebar.image(profile_picture, use_container_width=True)
+#             st.sidebar.write("### Edit Description")
+#             new_description = st.sidebar.text_area(
+#                 "User Description:",
+#                 value=user_description if user_description else "",
+#                 key=f"description_{selected_user}",
+#             )
+#             if st.sidebar.button(
+#                 "Save Description", key=f"save_description_{selected_user}"
+#             ):
+#                 update_user_description(conn, selected_user, new_description)
+#                 st.sidebar.success("Description updated successfully!")
+
+#             st.write(f"Pairwise selection for user: **{selected_user}**")
+#             pairs = get_uncertain_pairs(conn, selected_user)
+
+#             if not pairs:
+#                 st.write(
+#                     "No uncertain pairs available. Please run the training and uncertain pair generation outside this app."
+#                 )
+#             else:
+#                 img1_path, img2_path = pairs[0]
+#                 col1, col2 = st.columns(2)
+#                 with col1:
+#                     st.image(img1_path, use_container_width=True)
+#                     if st.button(
+#                         "Select Left Image", key=f"select_left_{img1_path}_{img2_path}"
+#                     ):
+#                         record_preference(conn, selected_user, img1_path, img2_path)
+#                         remove_uncertain_pair(conn, selected_user, img1_path, img2_path)
+#                         st.experimental_rerun()
+#                 with col2:
+#                     st.image(img2_path, use_container_width=True)
+#                     if st.button(
+#                         "Select Right Image",
+#                         key=f"select_right_{img1_path}_{img2_path}",
+#                     ):
+#                         record_preference(conn, selected_user, img2_path, img1_path)
+#                         remove_uncertain_pair(conn, selected_user, img1_path, img2_path)
+#                         st.experimental_rerun()
+
+#     else:
+#         st.sidebar.write("No users registered yet.")
+
+#     if st.sidebar.button("View Preferences", key="view_preferences"):
+#         prefs = get_preferences(conn)
+#         if prefs:
+#             st.write("User Preferences:")
+#             for row in prefs:
+#                 st.write(
+#                     f"User: {row[0]}, Preferred: {row[1]}, Not Preferred: {row[2]}"
+#                 )
+#         else:
+#             st.write("No preferences recorded yet.")
+
 import streamlit as st
 import random
 import os
@@ -11,6 +131,8 @@ from utils.database import (
     remove_uncertain_pair,
     get_uncertain_pairs,
     get_preferences,
+    # New function for counting labeled pairs
+    get_label_count,
 )
 from utils.image_ops import get_image_files
 
@@ -25,8 +147,7 @@ if len(image_files) < 2:
     st.error("Not enough images in the directory to compare.")
     st.stop()
 
-
-def main():
+if __name__ == "__main__":
     st.title("Image Preference Selector with User Profiles")
     st.sidebar.title("User Options")
 
@@ -60,9 +181,15 @@ def main():
     if users:
         selected_user = st.sidebar.selectbox("Select User", users, key="select_user")
         if selected_user:
+            # Get user’s profile and description
             profile_picture, user_description = get_user_profile(conn, selected_user)
-            st.sidebar.write(f"Currently selecting for user: **{selected_user}**")
+            st.sidebar.write(f"**Currently selecting for user:** {selected_user}")
             st.sidebar.image(profile_picture, use_container_width=True)
+
+            # ----- SHOW LABEL COUNT -----
+            label_count = get_label_count(conn, selected_user)
+            st.sidebar.write(f"Labeled pairs: **{label_count}**")
+
             st.sidebar.write("### Edit Description")
             new_description = st.sidebar.text_area(
                 "User Description:",
@@ -75,37 +202,67 @@ def main():
                 update_user_description(conn, selected_user, new_description)
                 st.sidebar.success("Description updated successfully!")
 
-            st.write(f"Pairwise selection for user: **{selected_user}**")
-            pairs = get_uncertain_pairs(conn, selected_user)
+            # --- TOGGLE FOR RANDOM LABELING MODE ---
+            random_label_mode = st.sidebar.checkbox("Random Labeling Mode", value=False)
 
-            if not pairs:
-                st.write(
-                    "No uncertain pairs available. Please run the training and uncertain pair generation outside this app."
-                )
-            else:
-                img1_path, img2_path = pairs[0]
+            if random_label_mode:
+                st.subheader("Random Pair Labeling")
+                img1_path, img2_path = random.sample(image_files, 2)
                 col1, col2 = st.columns(2)
                 with col1:
                     st.image(img1_path, use_container_width=True)
                     if st.button(
-                        "Select Left Image", key=f"select_left_{img1_path}_{img2_path}"
+                        f"Select Left Image",
+                        key=f"select_left_random_{img1_path}_{img2_path}",
                     ):
                         record_preference(conn, selected_user, img1_path, img2_path)
-                        remove_uncertain_pair(conn, selected_user, img1_path, img2_path)
                         st.experimental_rerun()
                 with col2:
                     st.image(img2_path, use_container_width=True)
                     if st.button(
-                        "Select Right Image",
-                        key=f"select_right_{img1_path}_{img2_path}",
+                        f"Select Right Image",
+                        key=f"select_right_random_{img1_path}_{img2_path}",
                     ):
                         record_preference(conn, selected_user, img2_path, img1_path)
-                        remove_uncertain_pair(conn, selected_user, img1_path, img2_path)
                         st.experimental_rerun()
+
+            else:
+                st.subheader("Uncertain Pair Labeling")
+                pairs = get_uncertain_pairs(conn, selected_user)
+                if not pairs:
+                    st.write(
+                        "No uncertain pairs available. Please run the training and uncertain pair generation outside this app."
+                    )
+                else:
+                    img1_path, img2_path = pairs[0]
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.image(img1_path, use_container_width=True)
+                        if st.button(
+                            "Select Left Image",
+                            key=f"select_left_{img1_path}_{img2_path}",
+                        ):
+                            record_preference(conn, selected_user, img1_path, img2_path)
+                            remove_uncertain_pair(
+                                conn, selected_user, img1_path, img2_path
+                            )
+                            st.experimental_rerun()
+                    with col2:
+                        st.image(img2_path, use_container_width=True)
+                        if st.button(
+                            "Select Right Image",
+                            key=f"select_right_{img1_path}_{img2_path}",
+                        ):
+                            record_preference(conn, selected_user, img2_path, img1_path)
+                            remove_uncertain_pair(
+                                conn, selected_user, img1_path, img2_path
+                            )
+                            st.experimental_rerun()
 
     else:
         st.sidebar.write("No users registered yet.")
 
+    # Button to show all preferences
     if st.sidebar.button("View Preferences", key="view_preferences"):
         prefs = get_preferences(conn)
         if prefs:
@@ -116,10 +273,6 @@ def main():
                 )
         else:
             st.write("No preferences recorded yet.")
-
-
-if __name__ == "__main__":
-    main()
 
 # # app.py
 

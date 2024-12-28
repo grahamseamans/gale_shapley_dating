@@ -116,3 +116,10 @@ def get_preferences(conn):
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM preferences")
     return cursor.fetchall()
+
+
+def get_label_count(conn, user_id):
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM preferences WHERE user_id = ?", (user_id,))
+    result = cursor.fetchone()
+    return result[0] if result else 0
