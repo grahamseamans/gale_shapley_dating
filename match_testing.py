@@ -1,96 +1,113 @@
-import random
-from collections import defaultdict
 import numpy as np
-from collections import Counter
+from collections import defaultdict, Counter
 
-N = 2_000  # population size
-users = list(range(N))
+# -----------------------------
+# 1) Setup and Preference Creation
+# -----------------------------
+N = 3000
+users = np.arange(N)
 
-score = [[0.0] * N for _ in range(N)]
+# We'll use a NumPy 2D array for scores, of shape (N,N).
+score = np.zeros((N, N), dtype=float)
+
 for u in range(N):
-    # Make a list of all other users
-    others = [x for x in range(N) if x != u]
-    # Shuffle them (random ranking)
-    random.shuffle(others)
+    # Create a list/array of all other users
+    others = np.delete(users, u)  # remove 'u' from the list of users
+    # Shuffle them in place (so user 'u' has a random ranking over these others)
+    np.random.shuffle(others)
 
     # We'll assign a linearly decreasing score from 1.0 down to 0.0 (exclusive).
-    # Step size = 1.0/(N-1). So top user gets ~1.0, next gets ~1 - step, etc.
-    step = 1.0 / (N - 1)
+    # e.g., if (N-1) = 1999, we get 1999 values from 1.0 down to ~0.0 in small steps
+    # endpoint=False means we'll never hit 0 exactly, just something close.
+    pref_values = np.linspace(1.0, 0.0, num=N, endpoint=False, dtype=float)
 
-    # We could do descending:
-    #   1.0, 1.0-step, 1.0-2*step, ... => top preference ~1.0, worst ~0.0
-    # This is effectively a random total order for user u.
-
+    # Now assign these preference values in the order of 'others' array:
+    # rank=0 => top preference near 1.0
+    # rank=N-2 => near 0.0
     for rank, v in enumerate(others):
-        # rank=0 is top preference, rank=N-2 is least preference
-        preference_value = 1.0 - rank * step
-        score[u][v] = preference_value
+        score[u, v] = pref_values[rank]
 
-# Step 2: Possibly do local sampling
-# (Or skip and do a single global pass for simplicity)
-SAMPLES = 100
-sample_size = 200
+# -----------------------------
+# 2) Sampling and Local Top-K Picks
+# -----------------------------
+SAMPLES = 30
+sample_size = 1000
 all_edges = []
 
 for _ in range(SAMPLES):
-    subset = random.sample(users, sample_size)
+    # Randomly choose 'sample_size' distinct users
+    subset = np.random.choice(users, sample_size, replace=False)
+
+    # We'll store edges in a Python list for convenience
     edges = []
-    # compute mutual scores within the subset
+    # Compute mutual scores among this subset
+    # (We've just a simple double loop for clarity)
     for i in range(sample_size):
         for j in range(i + 1, sample_size):
             u = subset[i]
             v = subset[j]
-            mutual = min(score[u][v], score[v][u])
-            edges.append((mutual, u, v))
-    # sort edges locally
+            mutual = min(score[u, v], score[v, u])
+            edges.append((mutual, int(u), int(v)))
+
+    # Sort these edges locally by descending mutual score
     edges.sort(reverse=True, key=lambda e: e[0])
-    # pick top K per user
-    K = 4
-    picks_for_user = {u: 0 for u in subset}
+
+    # For each user in 'subset', pick up to K edges
+    K = 2
+    picks_for_user = {int(u): 0 for u in subset}
+
     best_edges = []
     for val, u, v in edges:
+        # If either user can still accept more edges in this local pass, pick it
         if picks_for_user[u] < K or picks_for_user[v] < K:
             best_edges.append((val, u, v))
             picks_for_user[u] += 1
             picks_for_user[v] += 1
-    # add these best edges to global list
+
     all_edges.extend(best_edges)
 
-# Step 3: Consolidate final
+# -----------------------------
+# 3) Consolidate Final Matches
+# -----------------------------
+# Sort all edges from all samples by descending mutual score
 all_edges.sort(reverse=True, key=lambda e: e[0])
-K_final = 1
-used = [0] * N
+
+min_matches = 1  # absolute max final matches each user can have
+
+used = np.zeros(N, dtype=int)
 final_matches = []
+
 for val, u, v in all_edges:
-    if used[u] < K_final or used[v] < K_final:
+    if used[u] < min_matches and used[v] < min_matches:
         final_matches.append((val, u, v))
         used[u] += 1
         used[v] += 1
 
-# Step 4: Evaluate approximate stability
-blocking_count = 0
-# build a map: matched[u] -> who they ended up with
+print("Final matching has {} edges".format(len(final_matches)))
 
+# -----------------------------
+# 4) Evaluate Approximate Stability
+# -----------------------------
 matched_with = defaultdict(list)
 for val, u, v in final_matches:
     matched_with[u].append(v)
     matched_with[v].append(u)
 
-# check for blocking pairs
+blocking_count = 0
+
 for u in range(N):
+    # We'll only check v > u to avoid double-counting
     for v in range(u + 1, N):
-        # if they're not matched together
         if v not in matched_with[u]:
-            # check if they'd prefer each other over their current matches
-            mutual_uv = min(score[u][v], score[v][u])
-            # see if u has a match x with mutual < mutual_uv
-            # see if v has a match y with mutual < mutual_uv
-            # if so, it's blocking
+            # Check if they prefer each other over their current matches
+            mutual_uv = min(score[u, v], score[v, u])
+            # If there's a match x for u with mutual < mutual_uv, u would prefer v
+            # If there's a match y for v with mutual < mutual_uv, v would prefer u
             better_for_u = any(
-                min(score[u][x], score[x][u]) < mutual_uv for x in matched_with[u]
+                min(score[u, x], score[x, u]) < mutual_uv for x in matched_with[u]
             )
             better_for_v = any(
-                min(score[v][y], score[y][v]) < mutual_uv for y in matched_with[v]
+                min(score[v, y], score[y, v]) < mutual_uv for y in matched_with[v]
             )
             if better_for_u and better_for_v:
                 blocking_count += 1
