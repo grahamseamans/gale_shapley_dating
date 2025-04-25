@@ -76,7 +76,6 @@ def baysean_pairwise_ranking_loss(
     score_diffs = pos_scores - neg_scores
 
     def log_sigmoid(x: Tensor):
-        # log_sigmoid(x) = -softplus(-x) = x - softplus(x)
         return x - x.softplus()
 
     # Bayesian loss
